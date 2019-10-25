@@ -28,6 +28,7 @@ typedef struct {
     int OAMposition;
     int ssPos;
     int active;
+    int bulletTimer;
 } ENEMY;
 
 typedef struct {
@@ -49,15 +50,16 @@ typedef struct {
     int OAMposition;
     int active;
 } EBULLET;
-# 56 "gameState.h"
+# 57 "gameState.h"
 PLAYERSPRITE player;
 int eRemaining;
 ENEMY enemies[15];
 BULLETS bullets[5];
-EBULLET ebullets[3];
+EBULLET ebullets[7];
 int livesRemaining;
 int randomEnemy;
 int randomChanceforDrop;
+int eBulletTimer;
 
 
 enum { PLAYERUP, PLAYERRIGHT, PLAYERLEFT};
@@ -1384,8 +1386,9 @@ _putchar_unlocked(int _c)
 void initGame() {
 
 
-    livesRemaining = 5;
+    livesRemaining = 3;
     eRemaining = 15;
+    eBulletTimer = 0;
 
 
     DMANow(3, spriteSheetTiles, &((charblock *)0x6000000)[4], 32768/2);
@@ -1414,7 +1417,7 @@ void initGame() {
     }
 
 
-    for (int f = 0; f < 3; f++) {
+    for (int f = 0; f < 7; f++) {
         initEBullets(&ebullets[f], f);
     }
 
@@ -1429,6 +1432,7 @@ void initEnemy(ENEMY* e, int i) {
     e -> rvel = 0;
     e -> OAMposition = 1 + i;
     e -> active = 1;
+    e -> bulletTimer = 0;
 
     if (i < 5) {
         e -> col = 100;
@@ -1466,7 +1470,7 @@ void initEBullets(EBULLET* e, int i) {
     e -> height = 8;
     e -> col = 0;
     e -> row = 0;
-    e -> rvel = 2;
+    e -> rvel = 1;
     e -> OAMposition = 33 + i;
     e -> active = 0;
 
@@ -1474,6 +1478,8 @@ void initEBullets(EBULLET* e, int i) {
 
 
 void updateGame() {
+
+    eBulletTimer++;
 
 
     updatePlayer();
@@ -1484,19 +1490,12 @@ void updateGame() {
     }
 
 
-    randomEnemy = ( rand() % 13 ) + 1;
-    randomChanceforDrop = (rand() % 50);
-    if (randomChanceforDrop > 48) {
-    dropBullet(&enemies[randomEnemy]);
-    }
-
-
     for (int i = 0; i < 5; i++) {
         updateBullets(&bullets[i]);
     }
 
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 7; i++) {
         updateEBullets(&ebullets[i]);
     }
 
@@ -1624,10 +1623,23 @@ void updateSprites(ENEMY* e) {
         if (e->active) {
 
 
+            e->bulletTimer++;
+
+
 
             shadowOAM[e->OAMposition].attr0 = e->row;
             shadowOAM[e->OAMposition].attr1 = e->col | (1<<14);
             shadowOAM[e->OAMposition].attr2 = ((0)*32+((e->ssPos))) | ((1)<<12) | ((0)<<10);
+
+            randomChanceforDrop = rand() % 100;
+
+
+            if (e->bulletTimer > 100 && (randomChanceforDrop > 85)) {
+                dropBullet(e);
+                e->bulletTimer = 0;
+            } else if (e->bulletTimer > 100) {
+                e-> bulletTimer = 0;
+            }
 
 
             for (int i = 0; i < 5; i++) {
@@ -1657,7 +1669,7 @@ void dropBullet(ENEMY* e) {
         if (e->active) {
 
 
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 7; i++) {
                 if (!(ebullets[i].active)) {
                     ebullets[i].active = 1;
                     ebullets[i].col = e->col + (e->width >> 2);

@@ -10,6 +10,7 @@ void initGame() {
     // Init points variables
     livesRemaining = LIVES;
     eRemaining = 15;
+    eBulletTimer = 0;
 
     // Set up sprite palette
     DMANow(3, spriteSheetTiles, &CHARBLOCK[4], spriteSheetTilesLen/2);
@@ -53,6 +54,7 @@ void initEnemy(ENEMY* e, int i) {
     e -> rvel = 0;
     e -> OAMposition = 1 + i;
     e -> active = 1;
+    e -> bulletTimer = 0;
 
     if (i < 5) {
         e -> col = 100;
@@ -90,7 +92,7 @@ void initEBullets(EBULLET* e, int i) {
     e -> height = 8;
     e -> col = 0;
     e -> row = 0;
-    e -> rvel = 2;
+    e -> rvel = 1;
     e -> OAMposition = 33 + i;
     e -> active = 0;
 
@@ -99,19 +101,14 @@ void initEBullets(EBULLET* e, int i) {
 // Update game
 void updateGame() {
 
+    eBulletTimer++;
+
     // Update sprite attributes for player sprite
     updatePlayer();
 
     // Update sprite attributes for the enemy sprites
     for (int i = 0; i < ENEMYCOUNT; i++) {
         updateSprites(&enemies[i]);
-    }
-
-    // Pick random enemy and drop bullet
-    randomEnemy = ( rand() % 13 ) + 1;
-    randomChanceforDrop = (rand() % 50);
-    if (randomChanceforDrop > 48) {
-    dropBullet(&enemies[randomEnemy]);
     }
 
     // Update bullets
@@ -247,11 +244,24 @@ void updateSprites(ENEMY* e) {
         // If enemy is active, then draw it
         if (e->active) {
             
+            // Increment bulletTimer
+            e->bulletTimer++;
+            
             // TODO in HW06, update sprite movement
             // for now, position will be stationary
             shadowOAM[e->OAMposition].attr0 = e->row;
             shadowOAM[e->OAMposition].attr1 = e->col | ATTR1_SMALL;
             shadowOAM[e->OAMposition].attr2 = ATTR2_TILEID((e->ssPos), 0) | ATTR2_PALROW(1) | ATTR2_PRIORITY(0);
+
+            randomChanceforDrop = rand() % 100;
+
+            // Drop bullet if bulletTimer is over 20
+            if (e->bulletTimer > 100 && (randomChanceforDrop > 85)) {
+                dropBullet(e);
+                e->bulletTimer = 0;
+            } else if (e->bulletTimer > 100) {
+                e-> bulletTimer = 0;
+            }
 
             // Check for bullet collisions
             for (int i = 0; i < BULLETCOUNT; i++) {

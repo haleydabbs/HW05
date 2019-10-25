@@ -23,6 +23,7 @@ typedef struct {
     int OAMposition;
     int ssPos;
     int active;
+    int bulletTimer;
 } ENEMY;
 // Bullets
 typedef struct {
@@ -48,9 +49,9 @@ typedef struct {
 // Constants
 # define ENEMYCOUNT 15
 # define BULLETCOUNT 5
-# define EBULLETCOUNT 3
+# define EBULLETCOUNT 7
 # define COUNTDOWN 20
-# define LIVES 5
+# define LIVES 3
 
 // Variables
 PLAYERSPRITE player;
@@ -61,6 +62,7 @@ EBULLET ebullets[EBULLETCOUNT];
 int livesRemaining;
 int randomEnemy;
 int randomChanceforDrop;
+int eBulletTimer;
 
 // Player state enum
 enum { PLAYERUP, PLAYERRIGHT, PLAYERLEFT};

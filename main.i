@@ -104,6 +104,7 @@ typedef struct {
     int OAMposition;
     int ssPos;
     int active;
+    int bulletTimer;
 } ENEMY;
 
 typedef struct {
@@ -125,15 +126,16 @@ typedef struct {
     int OAMposition;
     int active;
 } EBULLET;
-# 56 "gameState.h"
+# 57 "gameState.h"
 PLAYERSPRITE player;
 int eRemaining;
 ENEMY enemies[15];
 BULLETS bullets[5];
-EBULLET ebullets[3];
+EBULLET ebullets[7];
 int livesRemaining;
 int randomEnemy;
 int randomChanceforDrop;
+int eBulletTimer;
 
 
 enum { PLAYERUP, PLAYERRIGHT, PLAYERLEFT};

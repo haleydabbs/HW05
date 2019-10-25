@@ -556,12 +556,13 @@ lose:
 	.comm	seed,4,4
 	.comm	oldButtons,2,2
 	.comm	buttons,2,2
+	.comm	eBulletTimer,4,4
 	.comm	randomChanceforDrop,4,4
 	.comm	randomEnemy,4,4
 	.comm	livesRemaining,4,4
-	.comm	ebullets,84,4
+	.comm	ebullets,196,4
 	.comm	bullets,140,4
-	.comm	enemies,540,4
+	.comm	enemies,600,4
 	.comm	eRemaining,4,4
 	.comm	player,32,4
 	.ident	"GCC: (devkitARM release 53) 9.1.0"
