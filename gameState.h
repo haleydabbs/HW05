@@ -50,6 +50,7 @@ typedef struct {
 # define BULLETCOUNT 5
 # define EBULLETCOUNT 3
 # define COUNTDOWN 20
+# define LIVES 5
 
 // Variables
 PLAYERSPRITE player;
@@ -57,7 +58,9 @@ int eRemaining;
 ENEMY enemies[ENEMYCOUNT];
 BULLETS bullets[BULLETCOUNT];
 EBULLET ebullets[EBULLETCOUNT];
-int enemyDropCountdown;
+int livesRemaining;
+int randomEnemy;
+int randomChanceforDrop;
 
 // Player state enum
 enum { PLAYERUP, PLAYERRIGHT, PLAYERLEFT};
@@ -73,3 +76,4 @@ void updatePlayer();
 void updateBullets(BULLETS* b);
 void updateEBullets(EBULLET* e);
 void fire();
+void dropBullet(ENEMY* e);

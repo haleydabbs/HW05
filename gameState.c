@@ -1,14 +1,15 @@
 #include "gameState.h"
 #include "myLib.h"
 #include "spriteSheet.h"
-
-int eRemaining;
+#include <stdlib.h>
+#include <stdio.h>
 
 // Initializes game
 void initGame() {
 
-    // Enemy drop counter init
-    enemyDropCountdown = 0;
+    // Init points variables
+    livesRemaining = LIVES;
+    eRemaining = 15;
 
     // Set up sprite palette
     DMANow(3, spriteSheetTiles, &CHARBLOCK[4], spriteSheetTilesLen/2);
@@ -17,8 +18,6 @@ void initGame() {
     // Hide dem sprites
     hideSprites();
 
-    eRemaining = 15;
-
     // Set up player sprite
     player.width = 32;
     player.height = 32;
@@ -26,7 +25,7 @@ void initGame() {
     player.row = 120;
     player.aniCounter = 0;
     player.aniState = PLAYERUP;
-    player.vel = 3;
+    player.vel = 2;
 
     // Init enemies
     for (int i = 0; i < ENEMYCOUNT; i++) {
@@ -38,14 +37,14 @@ void initGame() {
         initBullets(&bullets[i], i);
     }
 
-    // // Init enemy bullets
-    // for (int i = 0; i < ENEMYCOUNT; i++) {
-    //     initEBullets(&ebullets[i], i);
-    // }
+    // Init enemy bullets
+    for (int f = 0; f < EBULLETCOUNT; f++) {
+        initEBullets(&ebullets[f], f);
+    }
 
 }
 
-// Helper to initialize the bee looking enemy
+// Helper to initialize enemies
 void initEnemy(ENEMY* e, int i) {
 
     e -> width = 16;
@@ -78,36 +77,51 @@ void initBullets(BULLETS* b, int i) {
     b -> height = 8;
     b -> col = 0;
     b -> row = 0;
-    b -> rvel = 3;
+    b -> rvel = 2;
     b -> OAMposition = 18 + i;
     b -> active = 0;
     
 }
 
 // Helper to init enemy bullets
-// void initEBullets(EBULLET* e, int i) {
+void initEBullets(EBULLET* e, int i) {
 
-//     e -> width = 8;
-//     e -> height = 8;
-//     e -> col = 0;
-//     e -> row = 0;
-//     e -> rvel = 3;
-//     e -> OAMposition = 33 + i;
-//     e -> active = 0;
+    e -> width = 8;
+    e -> height = 8;
+    e -> col = 0;
+    e -> row = 0;
+    e -> rvel = 2;
+    e -> OAMposition = 33 + i;
+    e -> active = 0;
 
-// }
+}
 
 // Update game
 void updateGame() {
 
-    // Update enemy drop counter
-    enemyDropCountdown++;
-
     // Update sprite attributes for player sprite
     updatePlayer();
+
     // Update sprite attributes for the enemy sprites
     for (int i = 0; i < ENEMYCOUNT; i++) {
         updateSprites(&enemies[i]);
+    }
+
+    // Pick random enemy and drop bullet
+    randomEnemy = ( rand() % 13 ) + 1;
+    randomChanceforDrop = (rand() % 50);
+    if (randomChanceforDrop > 48) {
+    dropBullet(&enemies[randomEnemy]);
+    }
+
+    // Update bullets
+    for (int i = 0; i < BULLETCOUNT; i++) {
+        updateBullets(&bullets[i]);
+    }
+
+    // Update enemy bullets
+    for (int i = 0; i < EBULLETCOUNT; i++) {
+        updateEBullets(&ebullets[i]);
     }
 
 }
@@ -145,10 +159,6 @@ void updatePlayer() {
 
     }
 
-    for (int i = 0; i < BULLETCOUNT; i++) {
-        updateBullets(&bullets[i]);
-    }
-
     // Draw player with updated positions
     shadowOAM[0].attr0 = player.row;
     shadowOAM[0].attr1 = player.col | ATTR1_MEDIUM;
@@ -181,7 +191,7 @@ void updateBullets(BULLETS* b) {
 
                 // Draw bullet in shadowOAM
                 shadowOAM[b->OAMposition].attr0 = b->row;
-                shadowOAM[b->OAMposition].attr1 = b->col | ATTR1_SMALL;
+                shadowOAM[b->OAMposition].attr1 = b->col | ATTR1_TINY;
                 shadowOAM[b->OAMposition].attr2 = ATTR2_TILEID((18), 0) | ATTR2_PALROW(0) | ATTR2_PRIORITY(0);
 
             } else {
@@ -194,17 +204,48 @@ void updateBullets(BULLETS* b) {
     }
 }
 
+// Helper to update enemy bullets
+void updateEBullets(EBULLET* b) {
+
+    if (b->active) {
+
+        if ((b->row + b->height) < 160) {
+
+            // Update bullet position
+            b->row += b->rvel;
+
+            // Draw bullet in shadowOAM
+            shadowOAM[b->OAMposition].attr0 = b->row;
+            shadowOAM[b->OAMposition].attr1 = b->col | ATTR1_TINY;
+            shadowOAM[b->OAMposition].attr2 = ATTR2_TILEID((19), 0) | ATTR2_PALROW(1) | ATTR2_PRIORITY(0);
+
+            // Check for collision with player
+            if (collision(b->col, b->row, b->width, b->height, player.col, player.row, player.width, player.height)) {
+
+                // If there is a collision, decrement lives remaining
+                livesRemaining--;
+                // and hide bullet
+                b->active = 0;
+                shadowOAM[b->OAMposition].attr0 |= ATTR0_HIDE;
+
+            }
+
+        } else {
+
+            b->active = 0;
+            shadowOAM[b->OAMposition].attr0 |= ATTR0_HIDE;
+
+        }
+
+    }
+
+}
+
 // Helper function to update sprites
 void updateSprites(ENEMY* e) {
         
         // If enemy is active, then draw it
         if (e->active) {
-
-            // if reach necessary frame rate, have enemy drop bullet
-            if (enemyDropCountdown == COUNTDOWN) {
-                // find inactive enemy bullet in enemy bullet pool
-
-            }
             
             // TODO in HW06, update sprite movement
             // for now, position will be stationary
@@ -231,6 +272,24 @@ void updateSprites(ENEMY* e) {
 
                 }
             }
+        }
+
+}
+
+void dropBullet(ENEMY* e) {
+
+        if (e->active) {
+
+            // find inactive enemy bullet in enemy bullet pool
+            for (int i = 0; i < EBULLETCOUNT; i++) {
+                if (!(ebullets[i].active)) {
+                    ebullets[i].active = 1;
+                    ebullets[i].col = e->col + (e->width >> 2);
+                    ebullets[i].row = e->row + (e->height >> 2);
+                    break;
+                }
+            }
+
         }
 
 }

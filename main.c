@@ -6,6 +6,8 @@
 #include "pause.h"
 #include "lose.h"
 #include "win.h"
+#include <stdlib.h>
+#include <stdio.h>
 
 // Function prototype
 void initialize();
@@ -121,6 +123,9 @@ void start() {
         // Clear the BG0 bit to turn off start BG
         REG_DISPCTL &= ~(BG0_ENABLE);
 
+        // Seed random
+        srand(seed);
+
         // Initialize game, then move to game state
         initGame();
         goToGame();
@@ -159,7 +164,7 @@ void game() {
         REG_DISPCTL &= ~(BG1_ENABLE);
         goToWin();
 
-    } else if (BUTTON_PRESSED(BUTTON_B)) {
+    } else if (livesRemaining == 0) {
 
         // Clear BG1_Enable bit
         REG_DISPCTL &= ~(BG1_ENABLE);
