@@ -24,6 +24,8 @@ void lose();
 unsigned short buttons;
 unsigned short oldButtons;
 
+int seed;
+
 OBJ_ATTR shadowOAM[128];
 
 // Game states enum
@@ -61,11 +63,6 @@ int main() {
 
         }
 
-        // waitForVBlank();
-
-        // Copy shadowOAM into OAM
-        // DMANow(3, shadowOAM, OAM, (((sizeof(shadowOAM))/4) | DMA_DESTINATION_INCREMENT | DMA_SOURCE_INCREMENT | DMA_32));
-
     }
 
     return 0;
@@ -74,11 +71,28 @@ int main() {
 
 void initialize() {
 
-    // Enable BG 0 register
-    REG_BG0CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(8) | BG_SIZE_SMALL;
+    // Enable BG registers amd DMA appropriate BG's
+
+    // BG0 - Start
+    REG_BG0CNT = BG_CHARBLOCK(0) | BG_SCREENBLOCK(6) | BG_SIZE_SMALL;
+    DMANow(3, startTiles, &CHARBLOCK[0], startTilesLen / 2);
+    DMANow(3, startMap, &SCREENBLOCK[6], startMapLen / 2);
+
+    // BG1 - Game
+    REG_BG1CNT = BG_CHARBLOCK(1) | BG_SCREENBLOCK(14) | BG_SIZE_SMALL;
+    DMANow(3, gameTiles, &CHARBLOCK[1], gameTilesLen / 2);
+    DMANow(3, gameMap, &SCREENBLOCK[14], gameMapLen / 2);
+
+    // BG2 - Pause
+    REG_BG2CNT = BG_CHARBLOCK(2) | BG_SCREENBLOCK(22) | BG_SIZE_SMALL;
+    DMANow(3, pauseTiles, &CHARBLOCK[2], pauseTilesLen / 2);
+    DMANow(3, pauseMap, &SCREENBLOCK[22], pauseMapLen / 2);
+
+    // BG3 - Win & Lose
+    REG_BG3CNT = BG_CHARBLOCK(3) | BG_SCREENBLOCK(30) | BG_SIZE_SMALL;
 
     // Display control register
-    REG_DISPCTL = MODE0 | BG0_ENABLE | SPRITE_ENABLE;
+    REG_DISPCTL = MODE0 | SPRITE_ENABLE;
     
     // Loading BG palette
     DMANow(3, startPal, PALETTE, 256);
@@ -91,9 +105,7 @@ void initialize() {
 void goToStart() {
     
     // Loading start BG tiles
-    DMANow(3, startTiles, &CHARBLOCK[0], startTilesLen / 2);
-    DMANow(3, startMap, &SCREENBLOCK[8], startMapLen / 2);
-
+    REG_DISPCTL |= BG0_ENABLE;
     state = START;
 
 }
@@ -101,9 +113,15 @@ void goToStart() {
 // Runs every frame of start state
 void start() {
 
+    seed++; 
+
     // Start button pressed, start the game
     if (BUTTON_PRESSED(BUTTON_START)) {
 
+        // Clear the BG0 bit to turn off start BG
+        REG_DISPCTL &= ~(BG0_ENABLE);
+
+        // Initialize game, then move to game state
         initGame();
         goToGame();
 
@@ -114,10 +132,8 @@ void start() {
 // Sets up game state
 void goToGame() {
 
-    // Loading game BG tiles
-    DMANow(3, gameTiles, &CHARBLOCK[0], gameTilesLen / 2);
-    DMANow(3, gameMap, &SCREENBLOCK[8], gameMapLen / 2);
-
+    // Loading start BG tiles in BG 1
+    REG_DISPCTL |= BG1_ENABLE | SPRITE_ENABLE;
     state = GAME;
 
 }
@@ -125,22 +141,28 @@ void goToGame() {
 // Runs every frame of game
 void game() {
 
-    // Update game, wait for vblank, and copy shadow OAM into OAM
+    // Update sprite positions in game, draw sprites, wait for vblank, and copy shadow OAM into OAM
     updateGame();
     waitForVBlank();
     DMANow(3, shadowOAM, OAM, (((sizeof(shadowOAM))/4) | DMA_DESTINATION_INCREMENT | DMA_SOURCE_INCREMENT | DMA_32));
 
     // Start button pressed, start the game
     if (BUTTON_PRESSED(BUTTON_START)) {
-
+        
+        // Clear BG1_Enable bit
+        REG_DISPCTL &= ~(BG1_ENABLE);
         goToPause();
 
-    } else if (BUTTON_PRESSED(BUTTON_A)) {
+    } else if (eRemaining == 0) {
 
+        // Clear BG1_Enable bit
+        REG_DISPCTL &= ~(BG1_ENABLE);
         goToWin();
 
     } else if (BUTTON_PRESSED(BUTTON_B)) {
 
+        // Clear BG1_Enable bit
+        REG_DISPCTL &= ~(BG1_ENABLE);
         goToLose();
 
     }
@@ -150,10 +172,9 @@ void game() {
 // Sets up pause state
 void goToPause() {
 
-    // Loading pause BG tiles
-    DMANow(3, pauseTiles, &CHARBLOCK[0], pauseTilesLen / 2);
-    DMANow(3, pauseMap, &SCREENBLOCK[8], pauseMapLen / 2);
-
+    // Set up BG2 for pause screen
+    REG_DISPCTL |= BG2_ENABLE;
+    REG_DISPCTL &= ~(SPRITE_ENABLE);
     state = PAUSE;
 
 }
@@ -164,6 +185,8 @@ void pause() {
     // Start button pressed, return to game
     if (BUTTON_PRESSED(BUTTON_START)) {
 
+        // Clear BG2 bit
+        REG_DISPCTL &= ~(BG2_ENABLE);
         goToGame();
 
     } 
@@ -173,9 +196,13 @@ void pause() {
 // Sets up win state
 void goToWin() {
 
-    // Loading pause BG tiles
-    DMANow(3, winTiles, &CHARBLOCK[0], winTilesLen / 2);
-    DMANow(3, winMap, &SCREENBLOCK[8], winMapLen / 2);
+    // Enable BG3 for win screen
+    REG_DISPCTL |= BG3_ENABLE;
+    REG_DISPCTL &= ~(SPRITE_ENABLE);
+
+    // Loading win BG tiles
+    DMANow(3, winTiles, &CHARBLOCK[3], winTilesLen / 2);
+    DMANow(3, winMap, &SCREENBLOCK[30], winMapLen / 2);
 
     state = WIN;
 
@@ -187,6 +214,8 @@ void win() {
     // Start button pressed, go to start
     if (BUTTON_PRESSED(BUTTON_START)) {
 
+        // Clear BG3 bit
+        REG_DISPCTL &= ~(BG3_ENABLE);
         goToStart();
 
     }
@@ -196,9 +225,13 @@ void win() {
 // Sets up lose state
 void goToLose() {
 
-    // Loading pause BG tiles
-    DMANow(3, loseTiles, &CHARBLOCK[0], loseTilesLen / 2);
-    DMANow(3, loseMap, &SCREENBLOCK[8], loseMapLen / 2);
+    // Enable BG3 for lose screen
+    REG_DISPCTL |= BG3_ENABLE;
+    REG_DISPCTL &= ~(SPRITE_ENABLE);
+
+    // Loading lose BG tiles
+    DMANow(3, loseTiles, &CHARBLOCK[3], loseTilesLen / 2);
+    DMANow(3, loseMap, &SCREENBLOCK[30], loseMapLen / 2);
 
     state = LOSE;
 
@@ -210,6 +243,8 @@ void lose() {
     // Start button pressed, go to start
     if (BUTTON_PRESSED(BUTTON_START)) {
 
+        // Clear BG3 bit
+        REG_DISPCTL &= ~(BG3_ENABLE);
         goToStart();
 
     }

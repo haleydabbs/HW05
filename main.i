@@ -81,27 +81,72 @@ int collision(int colA, int rowA, int widthA, int heightA, int colB, int rowB, i
 # 1 "gameState.h" 1
 
 
+
 typedef struct {
     int row;
     int col;
-    int rdel;
-    int cdel;
     int width;
     int height;
     int aniCounter;
     int aniState;
     int prevAniState;
-} SPRITE;
+    int vel;
+} PLAYERSPRITE;
 
-SPRITE player;
+
+typedef struct {
+    int row;
+    int col;
+    int cvel;
+    int rvel;
+    int width;
+    int height;
+    int OAMposition;
+    int ssPos;
+    int active;
+} ENEMY;
+
+typedef struct {
+    int row;
+    int col;
+    int rvel;
+    int width;
+    int height;
+    int OAMposition;
+    int active;
+} BULLETS;
+
+typedef struct {
+    int row;
+    int col;
+    int rvel;
+    int width;
+    int height;
+    int OAMposition;
+    int active;
+} EBULLET;
+# 55 "gameState.h"
+PLAYERSPRITE player;
+int eRemaining;
+ENEMY enemies[15];
+BULLETS bullets[5];
+EBULLET ebullets[3];
+int enemyDropCountdown;
 
 
 enum { PLAYERUP, PLAYERRIGHT, PLAYERLEFT};
 
 
 void initGame();
+void initEnemy(ENEMY*, int);
+void initBullets(BULLETS*, int);
+void initEBullets(EBULLET* e, int);
 void updateGame();
-void drawGame();
+void updateSprites(ENEMY* e);
+void updatePlayer();
+void updateBullets(BULLETS* b);
+void updateEBullets(EBULLET* e);
+void fire();
 # 4 "main.c" 2
 # 1 "start.h" 1
 # 22 "start.h"
@@ -125,7 +170,7 @@ extern const unsigned short gamePal[256];
 # 6 "main.c" 2
 # 1 "pause.h" 1
 # 22 "pause.h"
-extern const unsigned short pauseTiles[48];
+extern const unsigned short pauseTiles[752];
 
 
 extern const unsigned short pauseMap[1024];
@@ -135,7 +180,7 @@ extern const unsigned short pausePal[256];
 # 7 "main.c" 2
 # 1 "lose.h" 1
 # 22 "lose.h"
-extern const unsigned short loseTiles[48];
+extern const unsigned short loseTiles[784];
 
 
 extern const unsigned short loseMap[1024];
@@ -145,7 +190,7 @@ extern const unsigned short losePal[256];
 # 8 "main.c" 2
 # 1 "win.h" 1
 # 22 "win.h"
-extern const unsigned short winTiles[48];
+extern const unsigned short winTiles[880];
 
 
 extern const unsigned short winMap[1024];
@@ -170,6 +215,8 @@ void lose();
 
 unsigned short buttons;
 unsigned short oldButtons;
+
+int seed;
 
 OBJ_ATTR shadowOAM[128];
 
@@ -208,11 +255,6 @@ int main() {
 
         }
 
-
-
-
-
-
     }
 
     return 0;
@@ -222,10 +264,27 @@ int main() {
 void initialize() {
 
 
-    (*(volatile unsigned short*)0x4000008) = ((0)<<2) | ((8)<<8) | (0<<14);
 
 
-    (*(unsigned short *)0x4000000) = 0 | (1<<8) | (1<<12);
+    (*(volatile unsigned short*)0x4000008) = ((0)<<2) | ((6)<<8) | (0<<14);
+    DMANow(3, startTiles, &((charblock *)0x6000000)[0], 96 / 2);
+    DMANow(3, startMap, &((screenblock *)0x6000000)[6], 2048 / 2);
+
+
+    (*(volatile unsigned short*)0x400000A) = ((1)<<2) | ((14)<<8) | (0<<14);
+    DMANow(3, gameTiles, &((charblock *)0x6000000)[1], 96 / 2);
+    DMANow(3, gameMap, &((screenblock *)0x6000000)[14], 2048 / 2);
+
+
+    (*(volatile unsigned short*)0x400000C) = ((2)<<2) | ((22)<<8) | (0<<14);
+    DMANow(3, pauseTiles, &((charblock *)0x6000000)[2], 1504 / 2);
+    DMANow(3, pauseMap, &((screenblock *)0x6000000)[22], 2048 / 2);
+
+
+    (*(volatile unsigned short*)0x400000E) = ((3)<<2) | ((30)<<8) | (0<<14);
+
+
+    (*(unsigned short *)0x4000000) = 0 | (1<<12);
 
 
     DMANow(3, startPal, ((unsigned short *)0x5000000), 256);
@@ -238,9 +297,7 @@ void initialize() {
 void goToStart() {
 
 
-    DMANow(3, startTiles, &((charblock *)0x6000000)[0], 96 / 2);
-    DMANow(3, startMap, &((screenblock *)0x6000000)[8], 2048 / 2);
-
+    (*(unsigned short *)0x4000000) |= (1<<8);
     state = START;
 
 }
@@ -248,8 +305,14 @@ void goToStart() {
 
 void start() {
 
+    seed++;
+
 
     if ((!(~(oldButtons)&((1<<3))) && (~buttons & ((1<<3))))) {
+
+
+        (*(unsigned short *)0x4000000) &= ~((1<<8));
+
 
         initGame();
         goToGame();
@@ -262,9 +325,7 @@ void start() {
 void goToGame() {
 
 
-    DMANow(3, gameTiles, &((charblock *)0x6000000)[0], 96 / 2);
-    DMANow(3, gameMap, &((screenblock *)0x6000000)[8], 2048 / 2);
-
+    (*(unsigned short *)0x4000000) |= (1<<9) | (1<<12);
     state = GAME;
 
 }
@@ -280,14 +341,20 @@ void game() {
 
     if ((!(~(oldButtons)&((1<<3))) && (~buttons & ((1<<3))))) {
 
+
+        (*(unsigned short *)0x4000000) &= ~((1<<9));
         goToPause();
 
-    } else if ((!(~(oldButtons)&((1<<0))) && (~buttons & ((1<<0))))) {
+    } else if (eRemaining == 0) {
 
+
+        (*(unsigned short *)0x4000000) &= ~((1<<9));
         goToWin();
 
     } else if ((!(~(oldButtons)&((1<<1))) && (~buttons & ((1<<1))))) {
 
+
+        (*(unsigned short *)0x4000000) &= ~((1<<9));
         goToLose();
 
     }
@@ -298,9 +365,8 @@ void game() {
 void goToPause() {
 
 
-    DMANow(3, pauseTiles, &((charblock *)0x6000000)[0], 96 / 2);
-    DMANow(3, pauseMap, &((screenblock *)0x6000000)[8], 2048 / 2);
-
+    (*(unsigned short *)0x4000000) |= (1<<10);
+    (*(unsigned short *)0x4000000) &= ~((1<<12));
     state = PAUSE;
 
 }
@@ -311,6 +377,8 @@ void pause() {
 
     if ((!(~(oldButtons)&((1<<3))) && (~buttons & ((1<<3))))) {
 
+
+        (*(unsigned short *)0x4000000) &= ~((1<<10));
         goToGame();
 
     }
@@ -321,8 +389,12 @@ void pause() {
 void goToWin() {
 
 
-    DMANow(3, winTiles, &((charblock *)0x6000000)[0], 96 / 2);
-    DMANow(3, winMap, &((screenblock *)0x6000000)[8], 2048 / 2);
+    (*(unsigned short *)0x4000000) |= (1<<11);
+    (*(unsigned short *)0x4000000) &= ~((1<<12));
+
+
+    DMANow(3, winTiles, &((charblock *)0x6000000)[3], 1760 / 2);
+    DMANow(3, winMap, &((screenblock *)0x6000000)[30], 2048 / 2);
 
     state = WIN;
 
@@ -334,6 +406,8 @@ void win() {
 
     if ((!(~(oldButtons)&((1<<3))) && (~buttons & ((1<<3))))) {
 
+
+        (*(unsigned short *)0x4000000) &= ~((1<<11));
         goToStart();
 
     }
@@ -344,8 +418,12 @@ void win() {
 void goToLose() {
 
 
-    DMANow(3, loseTiles, &((charblock *)0x6000000)[0], 96 / 2);
-    DMANow(3, loseMap, &((screenblock *)0x6000000)[8], 2048 / 2);
+    (*(unsigned short *)0x4000000) |= (1<<11);
+    (*(unsigned short *)0x4000000) &= ~((1<<12));
+
+
+    DMANow(3, loseTiles, &((charblock *)0x6000000)[3], 1568 / 2);
+    DMANow(3, loseMap, &((screenblock *)0x6000000)[30], 2048 / 2);
 
     state = LOSE;
 
@@ -357,6 +435,8 @@ void lose() {
 
     if ((!(~(oldButtons)&((1<<3))) && (~buttons & ((1<<3))))) {
 
+
+        (*(unsigned short *)0x4000000) &= ~((1<<11));
         goToStart();
 
     }
